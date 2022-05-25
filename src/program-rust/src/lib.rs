@@ -1,3 +1,11 @@
+mod liquidity_pool;
+mod factory;
+mod Router;
+pub mod instruction;
+use crate::instruction::Pool_instruction;
+use crate::Router::router;
+
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -26,6 +34,22 @@ pub fn process_instruction(
 ) -> ProgramResult {
     msg!("Hello World Rust program entrypoint");
 
+    let instruction = Pool_instruction::unpack(_instruction_data)?;
+    msg!("Instruction: {:?}", instruction);
+
+    match instruction {
+        Pool_instruction::Add_Liquidity =>{
+
+        },
+        Pool_instruction::Remove_Liquidity =>{
+
+        },
+        Pool_instruction::Swap_Tokens => {
+
+        }
+    }
+
+
     // Iterating accounts is safer than indexing
     let accounts_iter = &mut accounts.iter();
 
@@ -39,11 +63,12 @@ pub fn process_instruction(
     }
 
     // Increment and store the number of times the account has been greeted
-    let mut greeting_account = GreetingAccount::try_from_slice(&account.data.borrow())?;
-    greeting_account.counter += 1;
-    greeting_account.serialize(&mut &mut account.data.borrow_mut()[..])?;
+    let mut router_account = router::try_from_slice(&account.data.borrow())?;
+    // greeting_account.counter += 1;
 
-    msg!("Greeted {} time(s)!", greeting_account.counter);
+    // router_account.serialize(&mut &mut account.data.borrow_mut()[..])?;
+
+    // msg!("Greeted {} time(s)!", greeting_account.counter);
 
     Ok(())
 }
