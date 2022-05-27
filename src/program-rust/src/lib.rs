@@ -30,24 +30,12 @@ entrypoint!(process_instruction);
 pub fn process_instruction(
     program_id: &Pubkey, // Public key of the account the hello world program was loaded into
     accounts: &[AccountInfo], // The account to say hello to
-    _instruction_data: &[u8], // Ignored, all helloworld instructions are hellos
+    instruction_data: &[u8], // Ignored, all helloworld instructions are hellos
 ) -> ProgramResult {
     msg!("Hello World Rust program entrypoint");
 
-    let instruction = Pool_instruction::unpack(_instruction_data)?;
+    let instruction = Pool_instruction::unpack(instruction_data)?;
     msg!("Instruction: {:?}", instruction);
-
-    match instruction {
-        Pool_instruction::Add_Liquidity =>{
-
-        },
-        Pool_instruction::Remove_Liquidity =>{
-
-        },
-        Pool_instruction::Swap_Tokens => {
-
-        }
-    }
 
 
     // Iterating accounts is safer than indexing
@@ -63,10 +51,24 @@ pub fn process_instruction(
     }
 
     // Increment and store the number of times the account has been greeted
-    let mut router_account = router::try_from_slice(&account.data.borrow())?;
+    let mut router_account:router = router::try_from_slice(&account.data.borrow())?;
     // greeting_account.counter += 1;
 
-    // router_account.serialize(&mut &mut account.data.borrow_mut()[..])?;
+
+    match instruction {
+        Pool_instruction::Add_Liquidity(token0_name,token1_name,token0_amount,token1_amount,address_to) =>{
+            router_account.add_liquidity(token0_name,token1_name,token0_amount,token1_amount,address_to);
+        },
+        Pool_instruction::Remove_Liquidity(token0_name,token1_name,withdrawn_pool_tokens,token0_amount,token1_amount,address_to) =>{
+            router_account.remove_liquidity(token0_name,token1_name,withdrawn_pool_tokens,token0_amount,token1_amount,address_to);
+        },
+        Pool_instruction::Swap_Tokens(token0_name,token1_name,token0_amount,token1_amount,address_to) => {
+            router_account.swap_tokens(token0_name,token1_name,token0_amount,token1_amount,address_to);
+        }
+    }
+
+
+    router_account.serialize(&mut &mut account.data.borrow_mut()[..])?;
 
     // msg!("Greeted {} time(s)!", greeting_account.counter);
 

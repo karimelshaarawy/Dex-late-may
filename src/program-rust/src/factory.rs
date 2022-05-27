@@ -6,34 +6,36 @@ use sha2::digest::generic_array::GenericArray;
 use sha2::digest::Output;
 use sha2::digest::typenum::bit::{B0, B1};
 use generic_array::typenum::U5;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 // use serde::{Deserialize,Serialize};
 // use serde_json;
 
 use crate::liquidity_pool::Liquidity_pool;
 // #[derive(Debug,Deserialize,Serialize,PartialEq)]
-pub struct Factory<'a>{
-    pub(crate) pair_addresses :HashMap<String,  Liquidity_pool<'a>>,
-    fee_to:&'a str,
-    fee_to_setter:&'a str,
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct Factory{
+    pub(crate) pair_addresses :HashMap<String,  Liquidity_pool>,
+    fee_to:String,
+    fee_to_setter:String,
 
 }
 
-impl<'a> Factory<'a>{
-    pub fn create_pair<'b>(factory:&'b mut Factory<'b>, token_A:&'b str, token_B:&'b str,reserve_A:f64,reserve_B:f64,address_to:&'b str) {
+impl Factory{
+    pub fn create_pair<'b>(factory:&'b mut Factory, token_A:String, token_B:String,reserve_A:f64,reserve_B:f64,address_to:String) {
         assert!(token_A != token_B,"IDENTICAL_ADDRESSES");
         let mut key;
         let mut result;
         // let value1= &mut *[token_A, token_B].join("\n");
         // let value2=  &mut *[token_B, token_A].join("\n");
         if token_A<token_B {
-            key =  [token_A, token_B].concat();
-            result=Liquidity_pool::new( key.clone(), token_A, token_B);
+            key =  [token_A.clone(), token_B.clone()].concat();
+            result=Liquidity_pool::new( key.clone(), token_A.clone(), token_B.clone());
             result.set_reserves(reserve_A,reserve_B);
         }
          else {
-             key = [token_B, token_A].concat();
-             result=Liquidity_pool::new( key.clone(),token_B, token_A);
+             key = [token_B.clone(), token_A.clone()].concat();
+             result=Liquidity_pool::new( key.clone(),token_B.clone(), token_A.clone());
              result.set_reserves(reserve_B,reserve_A);
 
          }
@@ -52,11 +54,11 @@ impl<'a> Factory<'a>{
 
     }
 
-    fn set_fee_to (&mut self, fee_to:&'a str){
+    fn set_fee_to (&mut self, fee_to:String){
         self.fee_to= fee_to;
     }
 
-    fn set_fee_to_setter(&mut self, fee_to_setter:&'a str){
+    fn set_fee_to_setter(&mut self, fee_to_setter:String){
         self.fee_to_setter= fee_to_setter;
     }
 }

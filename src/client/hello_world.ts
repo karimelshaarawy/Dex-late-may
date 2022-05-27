@@ -15,7 +15,11 @@ import fs from 'mz/fs';
 import path from 'path';
 import * as borsh from 'borsh';
 
+import * as BufferLayout from '@solana/buffer-layout';
+import { Buffer } from 'buffer';
+
 import {getPayer, getRpcUrl, createKeypairFromFile} from './utils';
+import * as buffer from "buffer";
 
 /**
  * Connection to the network
@@ -56,6 +60,78 @@ const PROGRAM_SO_PATH = path.join(PROGRAM_PATH, 'helloworld.so');
  */
 const PROGRAM_KEYPAIR_PATH = path.join(PROGRAM_PATH, 'helloworld-keypair.json');
 
+// Liquidity Pool class
+export class Liquidity_pool {
+  key="";
+  token0_address="";
+  token1_address="";
+  reserve0=0;
+  reserve1=0;
+  klast=0;
+  liquidity_providers: Record<string, number>={};
+  total_pool_tokens=0
+  constructor(fields:{key: string; token0_address: string; token1_address: string; }|undefined=undefined) {
+    if(fields){
+      this.key=fields.key;
+      this.token0_address=fields.token0_address;
+      this.token1_address=fields.token1_address;
+    }
+  }
+
+}
+
+export class Factory
+{ pair_addresses: Record<string, Liquidity_pool>={};
+  fee_to=""
+  fee_to_setter=""
+ constructor(fields:{pair_addresses: Record<string, Liquidity_pool>,fee_to:string,fee_to_setter:string}|undefined=undefined) {
+    if(fields){
+      this.pair_addresses=fields.pair_addresses;
+      this.fee_to=fields.fee_to;
+      this.fee_to_setter=fields.fee_to_setter;
+    }
+ }
+}
+
+export class router {
+  factory: Factory;
+  constructor(fields:{factory:Factory}) {
+    this.factory=fields.factory;
+  }
+
+}
+
+const routerSchema = new Map<any,any> ([
+    [
+        router,{kind:'struct',fields:[
+        ['factory',Factory]
+      ]}
+    ],
+    [
+        Factory,{kind:'struct', fields:[
+            ['pair_addresses',{kind:'map',key:'string',value:Liquidity_pool}],
+            ['fee_to','string'],
+            ['fee_to_setter','string']
+          ]
+        }
+      ],
+  [  Liquidity_pool,{kind:'struct',fields:[
+      ['key','string'],
+        ['token0_address','string'],
+        ['token1_address','string'],
+        ['reserve0','f64'],
+        ['reserve1','f64'],
+        ['klast','f64'],
+        ['liquidity_providers',{kind:'map',key:'string',value:'f64'}],
+        ['total_pool_tokens','f64']
+    ]}
+
+  ]
+]);
+
+
+
+
 /**
  * The state of a greeting account managed by the hello world program
  */
@@ -79,9 +155,8 @@ const GreetingSchema = new Map([
  * The expected size of each greeting account.
  */
 const GREETING_SIZE = borsh.serialize(
-  GreetingSchema,
-  new GreetingAccount(),
-).length;
+  routerSchema,
+    new router({factory:new Factory({pair_addresses:{},fee_to:'',fee_to_setter:''})}), ).length
 
 /**
  * Establish a connection to the cluster
@@ -195,6 +270,58 @@ export async function checkProgram(): Promise<void> {
   }
 }
 
+function createAddLiquidityInstructionData ():Buffer{
+  const dataLayout= BufferLayout.struct([
+      BufferLayout.u8('instruction'),
+      BufferLayout.u8('token0_length'),
+      BufferLayout.u8('token1_length'),
+      BufferLayout.cstr('token0_name '),
+      BufferLayout.cstr('token1_name '),
+      BufferLayout.f64('token0_amount'),
+      BufferLayout.f64('token1_amount'),
+      BufferLayout.cstr('address_to')
+  ]);
+
+  const data =Buffer.alloc(dataLayout.span);
+  dataLayout.encode({instruction:1, token0_length:6,token1_length:7,token0_name:'solana',token1_name:'bitcoin', token0_amount:65, token1_amount:33,address_to:'karim'},data);
+  return data;
+}
+
+
+function createRemoveLiquidityInstructionData ():Buffer{
+  const dataLayout= BufferLayout.struct([
+    BufferLayout.u8('instruction'),
+    BufferLayout.u8('token0_length'),
+    BufferLayout.u8('token1_length'),
+    BufferLayout.cstr('token0_name '),
+    BufferLayout.cstr('token1_name '),
+    BufferLayout.f64('withdrawn_pool_tokens'),
+    BufferLayout.f64('token0_amount'),
+    BufferLayout.f64('token1_amount'),
+    BufferLayout.cstr('address_to')
+  ]);
+
+  const data =Buffer.alloc(dataLayout.span);
+  dataLayout.encode({instruction:2, token0_length:6,token1_length:7,token0_name:'solana',token1_name:'bitcoin',withdrawn_pool_tokens:10, token0_amount:3, token1_amount:2,address_to:'karim'},data);
+  return data;
+}
+
+function createSwapInstructionData ():Buffer{
+  const dataLayout= BufferLayout.struct([
+    BufferLayout.u8('instruction'),
+    BufferLayout.u8('token0_length'),
+    BufferLayout.u8('token1_length'),
+    BufferLayout.cstr('token0_name '),
+    BufferLayout.cstr('token1_name '),
+    BufferLayout.f64('token0_amount'),
+    BufferLayout.f64('token1_amount'),
+    BufferLayout.cstr('address_to')
+  ]);
+
+  const data =Buffer.alloc(dataLayout.span);
+  dataLayout.encode({instruction:0, token0_length:6,token1_length:7,token0_name:'solana',token1_name:'bitcoin', token0_amount:3, token1_amount:0,address_to:'karim'},data);
+  return data;
+}
 /**
  * Say hello
  */
@@ -209,6 +336,45 @@ export async function sayHello(): Promise<void> {
     connection,
     new Transaction().add(instruction),
     [payer],
+  );
+}
+
+export async function swapTokens(): Promise<void> {
+  const instruction = new TransactionInstruction({
+    keys: [{pubkey: greetedPubkey, isSigner: false, isWritable: true}],
+    programId,
+    data: createSwapInstructionData(), // All instructions are hellos
+  });
+  await sendAndConfirmTransaction(
+      connection,
+      new Transaction().add(instruction),
+      [payer],
+  );
+}
+
+export async function removeLiquidity(): Promise<void> {
+  const instruction = new TransactionInstruction({
+    keys: [{pubkey: greetedPubkey, isSigner: false, isWritable: true}],
+    programId,
+    data: createRemoveLiquidityInstructionData(), // All instructions are hellos
+  });
+  await sendAndConfirmTransaction(
+      connection,
+      new Transaction().add(instruction),
+      [payer],
+  );
+}
+
+export async function addLiquidity(): Promise<void> {
+  const instruction = new TransactionInstruction({
+    keys: [{pubkey: greetedPubkey, isSigner: false, isWritable: true}],
+    programId,
+    data: createAddLiquidityInstructionData(), // All instructions are hellos
+  });
+  await sendAndConfirmTransaction(
+      connection,
+      new Transaction().add(instruction),
+      [payer],
   );
 }
 
